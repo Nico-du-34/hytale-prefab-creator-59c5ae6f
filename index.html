@@ -31,5 +31,12 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Preload critical CSS to avoid render-blocking
+      document.querySelectorAll('link[rel="stylesheet"]').forEach(function(link) {
+        link.media = 'print';
+        link.onload = function() { this.media = 'all'; };
+      });
+    </script>
   </body>
 </html>
