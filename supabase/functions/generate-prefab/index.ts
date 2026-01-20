@@ -6,16 +6,70 @@ const corsHeaders = {
 };
 
 const HYTALE_BLOCKS = [
-  "Stone", "Cobblestone", "Granite", "Diorite", "Andesite", "Basalt", "Obsidian",
-  "Oak_Wood", "Birch_Wood", "Spruce_Wood", "Dark_Oak_Wood", "Oak_Planks", "Birch_Planks",
+  "Stone", "Stone_Brick", "Stone_Cobble", "Cobblestone", "Granite", "Diorite", "Andesite", "Basalt", "Obsidian",
+  "Wood_Oak", "Wood_Birch", "Wood_Spruce", "Wood_Dark_Oak", "Wood_Planks_Oak", "Wood_Planks_Birch", "Wood_Planks_Spruce",
   "Iron_Block", "Gold_Block", "Diamond_Block", "Copper_Block",
-  "Glass", "Tinted_Glass", "Stained_Glass_Red", "Stained_Glass_Blue",
-  "Brick", "Stone_Brick", "Mossy_Stone_Brick", "Chiseled_Stone_Brick",
-  "Dirt", "Grass", "Sand", "Gravel", "Clay",
+  "Glass", "Glass_White", "Glass_Red", "Glass_Blue", "Glass_Green",
+  "Brick_Red", "Brick_Brown", "Brick_Stone",
+  "Soil", "Soil_Grass", "Sand", "Gravel", "Clay",
   "Water", "Lava", "Ice", "Snow", "Moss",
-  "Glowstone", "Torch", "Lantern", "Redstone_Lamp",
-  "Wool_White", "Wool_Red", "Wool_Blue", "Wool_Green"
+  "Glow_Stone", "Leaves_Oak", "Leaves_Birch",
+  "Wool_White", "Wool_Red", "Wool_Blue", "Wool_Green",
+  "Tile_Roof_Red", "Tile_Roof_Blue", "Thatch"
 ];
+
+async function callAIWithRetry(apiKey: string, systemPrompt: string, userPrompt: string, maxRetries = 3): Promise<Response> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`AI call attempt ${attempt}/${maxRetries}`);
+      
+      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt }
+          ],
+          temperature: 0.7,
+        }),
+      });
+
+      // If we get a successful response or a client error (4xx), return it
+      if (response.ok || (response.status >= 400 && response.status < 500)) {
+        return response;
+      }
+
+      // For 5xx errors, we retry
+      const errorText = await response.text();
+      console.error(`Attempt ${attempt} failed with status ${response.status}:`, errorText.substring(0, 200));
+      lastError = new Error(`HTTP ${response.status}`);
+      
+      // Wait before retry (exponential backoff)
+      if (attempt < maxRetries) {
+        const delay = Math.pow(2, attempt) * 500; // 1s, 2s, 4s
+        console.log(`Waiting ${delay}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    } catch (error) {
+      console.error(`Attempt ${attempt} threw error:`, error);
+      lastError = error instanceof Error ? error : new Error(String(error));
+      
+      if (attempt < maxRetries) {
+        const delay = Math.pow(2, attempt) * 500;
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  throw lastError || new Error("All retry attempts failed");
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -51,34 +105,24 @@ RÈGLES IMPORTANTES:
 7. Maximum 500 blocs pour des raisons de performance
 
 EXEMPLES DE STRUCTURES:
-- Maison: murs en Brick ou Stone_Brick, toit en Oak_Planks, sol en Oak_Planks
-- Tour: base en Stone_Brick, corps en Cobblestone, créneaux
-- Arbre: tronc en Oak_Wood, feuilles autour du sommet
-- Pont: piliers en Stone, surface en Oak_Planks
+- Maison: murs en Brick_Red ou Stone_Brick, toit en Tile_Roof_Red ou Wood_Planks_Oak, sol en Wood_Planks_Oak
+- Tour: base en Stone_Brick, corps en Stone_Cobble, créneaux
+- Arbre: tronc en Wood_Oak, feuilles en Leaves_Oak autour du sommet
+- Pont: piliers en Stone, surface en Wood_Planks_Oak
 
 RÉPONDS UNIQUEMENT AVEC LE JSON, pas d'explication.
 Format attendu: [{"x": 0, "y": 0, "z": 0, "name": "Stone"}, ...]`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `Génère une structure: ${prompt}` }
-        ],
-        temperature: 0.7,
-      }),
-    });
+    const response = await callAIWithRetry(
+      LOVABLE_API_KEY,
+      systemPrompt,
+      `Génère une structure: ${prompt}`
+    );
 
     if (!response.ok) {
       if (response.status === 429) {
         return new Response(
-          JSON.stringify({ error: "Trop de requêtes, réessayez plus tard." }),
+          JSON.stringify({ error: "Trop de requêtes, réessayez dans quelques secondes." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -89,9 +133,9 @@ Format attendu: [{"x": 0, "y": 0, "z": 0, "name": "Stone"}, ...]`;
         );
       }
       const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
+      console.error("AI gateway error after retries:", response.status, errorText.substring(0, 200));
       return new Response(
-        JSON.stringify({ error: "Erreur du service IA" }),
+        JSON.stringify({ error: "Erreur du service IA, veuillez réessayer." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -114,7 +158,7 @@ Format attendu: [{"x": 0, "y": 0, "z": 0, "name": "Stone"}, ...]`;
     } catch (parseError) {
       console.error("Parse error:", parseError);
       return new Response(
-        JSON.stringify({ error: "Impossible de parser la réponse de l'IA" }),
+        JSON.stringify({ error: "Impossible de parser la réponse de l'IA, veuillez réessayer." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -137,7 +181,7 @@ Format attendu: [{"x": 0, "y": 0, "z": 0, "name": "Stone"}, ...]`;
   } catch (error) {
     console.error("Generate prefab error:", error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Erreur inconnue" }),
+      JSON.stringify({ error: error instanceof Error ? error.message : "Erreur inconnue, veuillez réessayer." }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
