@@ -4,7 +4,8 @@ import { BlockPalette } from "./BlockPalette";
 import { EditorToolbar } from "./EditorToolbar";
 import { GridEditor } from "./GridEditor";
 import { Preview3D } from "./Preview3D";
-import { exportPrefab, importPrefab } from "@/lib/prefabTypes";
+import { AIGenerator } from "./AIGenerator";
+import { exportPrefab, importPrefab, PrefabBlock } from "@/lib/prefabTypes";
 import { useToast } from "@/hooks/use-toast";
 
 export function PrefabGenerator() {
@@ -102,6 +103,14 @@ export function PrefabGenerator() {
     });
   };
 
+  const handleAIGenerated = (blocks: PrefabBlock[]) => {
+    // Clear existing and load new blocks
+    clearPrefab();
+    blocks.forEach((block) => {
+      addBlock(block.x, block.y, block.z, block.name);
+    });
+  };
+
   return (
     <div className="flex flex-col gap-4 p-4 min-h-screen">
       {/* Hidden file input for import */}
@@ -131,8 +140,9 @@ export function PrefabGenerator() {
 
       {/* Main content */}
       <div className="flex flex-col lg:flex-row gap-4 flex-1">
-        {/* Block palette */}
-        <div className="lg:w-64 shrink-0">
+        {/* Block palette + AI Generator */}
+        <div className="lg:w-72 shrink-0 space-y-4">
+          <AIGenerator gridSize={gridSize} onGenerated={handleAIGenerated} />
           <BlockPalette
             selectedBlock={selectedBlock}
             onSelectBlock={setSelectedBlock}

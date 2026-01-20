@@ -1,0 +1,4 @@
+project_id = "qmhsghjiasjazblgoiql"
+
+[functions.generate-prefab]
+verify_jwt = false
