@@ -103,9 +103,10 @@ export function PrefabGenerator() {
     });
   };
 
-  const handleAIGenerated = (blocks: PrefabBlock[]) => {
-    // Clear existing and load new blocks
-    clearPrefab();
+  const handleAIGenerated = (blocks: PrefabBlock[], replaceAll: boolean) => {
+    if (replaceAll) {
+      clearPrefab();
+    }
     blocks.forEach((block) => {
       addBlock(block.x, block.y, block.z, block.name);
     });
