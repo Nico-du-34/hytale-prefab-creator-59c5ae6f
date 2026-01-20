@@ -4,14 +4,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sparkles, Loader2, User, Bot, Send } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Sparkles, Loader2, User, Bot, Send, Plus, Replace } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { PrefabBlock } from "@/lib/prefabTypes";
 import { cn } from "@/lib/utils";
 
 interface AIGeneratorProps {
   gridSize: number;
-  onGenerated: (blocks: PrefabBlock[]) => void;
+  onGenerated: (blocks: PrefabBlock[], replaceAll: boolean) => void;
 }
 
 interface ChatMessage {
@@ -27,6 +29,7 @@ export function AIGenerator({ gridSize, onGenerated }: AIGeneratorProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [replaceMode, setReplaceMode] = useState(false);
   const { toast } = useToast();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -95,12 +98,13 @@ export function AIGenerator({ gridSize, onGenerated }: AIGeneratorProps) {
       }
 
       if (data.blocks && data.blocks.length > 0) {
-        onGenerated(data.blocks);
+        onGenerated(data.blocks, replaceMode);
         
+        const actionText = replaceMode ? "remplacé" : "ajouté";
         const assistantMessage: ChatMessage = {
           id: crypto.randomUUID(),
           role: "assistant",
-          content: `J'ai généré une structure avec ${data.blocks.length} blocs ! La structure a été ajoutée à l'éditeur.`,
+          content: `J'ai généré ${data.blocks.length} blocs ! ${replaceMode ? "La structure précédente a été remplacée." : "Les blocs ont été ajoutés à votre construction existante."}`,
           blocksGenerated: data.blocks.length,
           timestamp: new Date(),
         };
@@ -108,7 +112,7 @@ export function AIGenerator({ gridSize, onGenerated }: AIGeneratorProps) {
         
         toast({
           title: "Génération réussie!",
-          description: `${data.blocks.length} blocs générés par l'IA.`,
+          description: `${data.blocks.length} blocs ${actionText}.`,
         });
       } else {
         throw new Error("Aucun bloc généré");
@@ -251,6 +255,26 @@ export function AIGenerator({ gridSize, onGenerated }: AIGeneratorProps) {
             </div>
           </div>
         )}
+
+        {/* Mode toggle */}
+        <div className="px-3 pt-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {replaceMode ? (
+              <Replace className="h-3.5 w-3.5 text-destructive" />
+            ) : (
+              <Plus className="h-3.5 w-3.5 text-primary" />
+            )}
+            <Label htmlFor="replace-mode" className="text-xs cursor-pointer">
+              {replaceMode ? "Remplacer tout" : "Ajouter aux blocs"}
+            </Label>
+          </div>
+          <Switch
+            id="replace-mode"
+            checked={replaceMode}
+            onCheckedChange={setReplaceMode}
+            className="scale-75"
+          />
+        </div>
 
         {/* Input area */}
         <div className="p-3 border-t-2 border-foreground mt-2">
